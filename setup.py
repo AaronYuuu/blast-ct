@@ -27,11 +27,11 @@ setuptools.setup(
         'scipy',
         'numpy',
         'pandas',
-        'SimpleITK==1.2.4',
+        'SimpleITK>=2.0.0',
         'torch',
         'tensorboard'
     ],
-    python_requires='>=3.6',
+    python_requires='>=3.8',
     setup_requires=['setuptools_scm']
 
 )

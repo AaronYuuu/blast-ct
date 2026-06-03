@@ -22,10 +22,10 @@ def run_job(job_dir, train_csv_path, valid_csv_path, config_file, num_epochs, de
     print('Setting up configuration...')
     task = config['data']['task']
     model = get_model(config)
-    use_cuda = device.type != 'cpu'
-    train_loader = get_train_loader(config, model, train_csv_path, use_cuda)
-    valid_loader = get_valid_loader(config, model, valid_csv_path, use_cuda)
-    test_loader = get_test_loader(config, model, valid_csv_path, use_cuda)
+    pin_memory = use_pin_memory(device)
+    train_loader = get_train_loader(config, model, train_csv_path, pin_memory)
+    valid_loader = get_valid_loader(config, model, valid_csv_path, pin_memory)
+    test_loader = get_test_loader(config, model, valid_csv_path, pin_memory)
     optimizer = get_optimizer(config, model)
     criterion = get_loss(config)
     hooks = get_training_hooks(job_dir, config, device, valid_loader, test_loader)
@@ -47,11 +47,37 @@ def set_random_seed(random_seed):
 
 
 def set_device(device):
-    device = int(device) if device != 'cpu' else device
-    device = torch.device(device if torch.cuda.is_available() else 'cpu')
-    if device.type == 'cpu':
+    """Select torch device: 'cpu', 'mps' (Apple Silicon), or CUDA GPU index (e.g. 0)."""
+    device_id = str(device).strip().lower()
+    if device_id == 'cpu':
+        torch_device = torch.device('cpu')
         print('Warning: running on CPU!')
-    return device
+    elif device_id == 'mps':
+        if getattr(torch.backends, 'mps', None) is not None and torch.backends.mps.is_available():
+            torch_device = torch.device('mps')
+        else:
+            print('Warning: MPS not available, falling back to CPU!')
+            torch_device = torch.device('cpu')
+            print('Warning: running on CPU!')
+    else:
+        try:
+            cuda_index = int(device_id)
+        except ValueError as error:
+            raise ValueError(
+                f"Unknown device {device!r}. Use 'cpu', 'mps', or a CUDA GPU index (e.g. 0)."
+            ) from error
+        if torch.cuda.is_available():
+            torch_device = torch.device(cuda_index)
+        else:
+            print('Warning: CUDA not available, falling back to CPU!')
+            torch_device = torch.device('cpu')
+            print('Warning: running on CPU!')
+    return torch_device
+
+
+def use_pin_memory(device):
+    """pin_memory only helps host-to-CUDA transfers."""
+    return device.type == 'cuda'
 
 
 def run_ensemble(job_dir, train_csv_path, valid_csv_path, config_file, num_epochs, device, random_seeds, overwrite):
@@ -96,7 +122,7 @@ def train():
     parser.add_argument('--device',
                         required=True,
                         type=str,
-                        help='Device to use for computation')
+                        help="Device: 'cpu', 'mps' (Apple Silicon), or CUDA GPU index (e.g. 0)")
     parser.add_argument('--random-seeds',
                         default="1 2 3 4 5",
                         type=str,

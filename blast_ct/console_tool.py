@@ -8,7 +8,7 @@ import pandas as pd
 
 from blast_ct.nifti.savers import NiftiPatchSaver
 from blast_ct.read_config import get_model, get_test_loader
-from blast_ct.train import set_device
+from blast_ct.train import set_device, use_pin_memory
 from blast_ct.trainer.inference import ModelInference, ModelInferenceEnsemble
 
 
@@ -25,7 +25,9 @@ def console_tool():
     parser.add_argument('--output', metavar='output', type=str, help='Path to output image.', required=True)
     parser.add_argument('--ensemble', help='Whether to use the ensemble (slower but more precise)', action='store_true',
                         default=False)
-    parser.add_argument('--device', help='GPU device index (int) or \'cpu\' (str)', default='cpu')
+    parser.add_argument('--device',
+                        help="Device: 'cpu', 'mps' (Apple Silicon), or CUDA GPU index (e.g. 0)",
+                        default='cpu')
     parser.add_argument('--do-localisation', default=False, action='store_true',
                         help='Whether to run localisation or not')
 
@@ -49,7 +51,7 @@ def console_tool():
     pd.DataFrame(data=[['im_0', parse_args.input]], columns=['id', 'image']).to_csv(test_csv_path, index=False)
 
     model = get_model(config)
-    test_loader = get_test_loader(config, model, test_csv_path, use_cuda=not device.type == 'cpu')
+    test_loader = get_test_loader(config, model, test_csv_path, use_cuda=use_pin_memory(device))
 
     saver = NiftiPatchSaver(job_dir, test_loader, write_prob_maps=False, do_localisation=parse_args.do_localisation)
 

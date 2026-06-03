@@ -6,7 +6,7 @@ import shutil
 
 from blast_ct.nifti.savers import NiftiPatchSaver
 from blast_ct.read_config import get_model, get_test_loader
-from blast_ct.train import set_device
+from blast_ct.train import set_device, use_pin_memory
 from blast_ct.trainer.inference import ModelInference, ModelInferenceEnsemble
 
 
@@ -50,8 +50,7 @@ def run_inference(job_dir, test_csv_path, config_file, device, saved_model_paths
         config = json.load(f)
     model = get_model(config)
     device = set_device(device)
-    use_cuda = device.type != 'cpu'
-    test_loader = get_test_loader(config, model, test_csv_path, use_cuda)
+    test_loader = get_test_loader(config, model, test_csv_path, use_pin_memory(device))
     extra_output_names = config['test']['extra_output_names'] if 'extra_output_names' in config['test'] else None
 
     saver = NiftiPatchSaver(job_dir, test_loader, write_prob_maps=write_prob_maps,
@@ -96,7 +95,7 @@ def inference():
     parser.add_argument('--device',
                         type=str,
                         default='cpu',
-                        help='Device to use for computation')
+                        help="Device: 'cpu', 'mps' (Apple Silicon), or CUDA GPU index (e.g. 0)")
     parser.add_argument('--saved-model-paths',
                         default=default_model_paths,
                         type=str,
